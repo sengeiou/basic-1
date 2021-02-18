@@ -1,0 +1,150 @@
+package com.lzui.screensaver.util;
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.BitmapFactory.Options;
+import android.graphics.Matrix;
+import android.os.Environment;
+
+import com.lunzn.tool.autofit.GetScreenSize;
+import com.lunzn.tool.log.LogUtil;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+
+import static android.os.Environment.MEDIA_MOUNTED;
+
+public class IOHelper {
+
+    /** 从给定路径加载图片 */
+    public static Bitmap loadBitmap(String imgpath) {
+        Options options = new Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(imgpath, options);
+        options.inSampleSize = calculateInSampleSize(options, GetScreenSize.widthPixels, GetScreenSize.heightPixels);
+        LogUtil.i(" 宽" + options.outWidth + "/高" + options.outHeight + "  /options.inSampleSize: " + options.inSampleSize);
+        options.inJustDecodeBounds = false;
+        //Config参数，解析器或根据当前的参数配置进行对应的解析，这也可以有效减少加载的内存
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        //由此产生的位图将分配它的像素,这样他们可以被净化系统需要回收的内存。
+        options.inPurgeable = true;
+        //inInputShareable属性和inPurgeable 有关，当inPurgeable 属性设置为false的时候，inInputShareable属性就可以忽略。
+        //但是如果这两个属性都设置为true的时候，源码的注释这样说：确定位图可以共享一个参考输入数据如果它必须深拷贝的话。
+        options.inInputShareable = true;
+        return BitmapFactory.decodeFile(imgpath, options);
+    }
+
+    /**
+     * 从给定的路径加载图片 并指定是否自动旋转方向
+     *
+     * @param imgpath
+     * @param adjustOritation
+     * @return
+     */
+    public static Bitmap loadBitmap(String imgpath, boolean adjustOritation, int digree) {
+        LogUtil.i("文件方向11111，loadBitmap:" + imgpath);
+        if (!adjustOritation) {
+            return loadBitmap(imgpath);
+        } else {
+            Bitmap bm = loadBitmap(imgpath);
+            LogUtil.i("文件方向22222，loadBitmap:" + imgpath);
+            LogUtil.i("文件方向，path: rotateBitmap ");
+            return rotateBitmap(bm, digree);
+        }
+    }
+
+    public static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        LogUtil.i("屏幕宽高 " + reqWidth + "/" + reqHeight + "  图片宽高: " + width + " / " + height);
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int heightRatio = (int) Math.ceil((float) height / (float) reqHeight);
+            final int widthRatio = (int) Math.ceil((float) width / (float) reqWidth);
+
+            LogUtil.i("  widthRatio" + widthRatio + "   heightRatio" + heightRatio);
+
+            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
+
+        } else if (reqHeight > height || reqWidth > width) {
+
+            final int heightRatio = (int) Math.ceil((float) reqHeight / (float) height);
+            final int widthRatio = (int) Math.ceil((float) reqWidth / (float) width);
+
+            LogUtil.i(" widthRatio " + widthRatio + "   heightRatio " + heightRatio);
+
+            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
+        }
+        return inSampleSize;
+    }
+
+    /**
+     * 旋转图片，使图片保持正确的方向。
+     *
+     * @param bitmap  原始图片
+     * @param degrees 原始图片的角度
+     * @return Bitmap 旋转后的图片
+     */
+    public static Bitmap rotateBitmap(Bitmap bitmap, int degrees) {
+        Bitmap bmp = null;
+        LogUtil.i("文件方向，path: rotateBitmap  11111111111111");
+        try {
+            if (degrees == 0 || null == bitmap) {
+                return bitmap;
+            }
+            Matrix matrix = new Matrix();
+            matrix.setRotate(degrees, bitmap.getWidth() / 2, bitmap.getHeight() / 2);
+            bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            if (null != bitmap) {
+                bitmap.recycle();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        LogUtil.i("文件方向，path: rotateBitmap  222222222");
+        return bmp;
+    }
+
+    /**
+     *  
+     *
+     * @param context 上下文对象
+     * @param dir      存储目录
+     * @return
+     */
+    public static String getFilePath(Context context, String dir) {
+        String directoryPath = "";
+        //判断SD卡是否可用 
+        if (MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
+            directoryPath = context.getExternalFilesDir(dir).getAbsolutePath();
+        } else {
+            directoryPath = context.getFilesDir() + File.separator + dir;
+        }
+        File file = new File(directoryPath);
+        if (!file.exists()) {//判断文件目录是否存在  
+            file.mkdirs();
+        }
+        LogUtil.i("filePath====>" + directoryPath);
+        return directoryPath;
+    }
+
+    /**
+     * 关闭流
+     *
+     * @param closeable
+     */
+    public static void close(Closeable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}

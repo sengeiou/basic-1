@@ -1,0 +1,405 @@
+package com.android.dreams.basic;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.service.dreams.DreamService;
+
+import com.android.dreams.basic.util.SharedPreferenceUtil;
+import com.lunzn.tool.log.LogUtil;
+
+/**
+ * Desc: 屏保服务
+ * <p>
+ * Author: xiezhitao
+ * PackageName: com.lzui.screensaver
+ * ProjectName: ScreenSave
+ * Date: 2019/3/1 9:41
+ */
+public class LzDream extends DreamService {
+    public static final String TAG = "LzDream";
+
+    //** 一天的毫秒数 *//*
+    private static final long ONEDAYTIME = 24 * 60 * 60 * 1000;// 86400000
+
+    //** 网络线程 *//*
+//    private NetRunnable mNetRunnable;
+    private DreamFrameLayout mDreamFrameLayout;
+
+    /*   *//** 获取屏保信息地址 *//*
+    private static final String URL_INFO = "http://lunzn.aisee.tv/m2/rom/screenSaver";
+
+    *//** 获取屏保启动时间地址 *//*
+    private static final String URL_TIME_INFO = "https://lunzn.aisee.tv/m2/rom/GetScreenSaverInterval";
+
+
+    *//** 显示图片布局 *//*
+
+     *//** 文件下载地址 *//*
+    private String mImageDownloadDir = "";
+
+    *//** 下载类 *//*
+    private OkHttpClient mOkHttpClient;
+
+
+
+    *//** 每个图片对应的下载次数集合 *//*
+    private HashMap<String, Integer> mFailedTimes = new HashMap();
+
+    *//** 准备下载 SliderItem 集合 *//*
+    private HashMap<String, SliderItem> mURL = new HashMap();
+
+    *//** 已下载的 SliderItem 集合 *//*
+    private HashSet<SliderItem> mAllDownSliderItem = new HashSet();
+
+    *//** 图片总数 *//*
+    private int mAllImages;
+
+    *//** 设备信息 *//*
+    private DeviceInfoMgr.DeviceInfo mDeviceInfo;
+
+    *//** 实体类对象 *//*
+    private ScreenSaverBean screenSaverBean = null;
+
+    *//** 下载图片成功和失败的回调 *//*
+    private DownLoadInterface mDownLoadInterface = new DownLoadInterface() {
+        @Override
+        public void succesed(SliderItem item) {
+            if (!mAllDownSliderItem.contains(item)) {
+                mAllDownSliderItem.add(item);
+            }
+            if (mAllDownSliderItem.size() == mAllImages) {
+
+                LogUtil.w(TAG, "全部图片下载成功 ");
+                String version = SharedPreferenceUtil.getString("version", "0");
+                if (!version.equalsIgnoreCase("0")) {
+
+                    String deletePath = IOHelper.getFilePath(getApplicationContext(), version);
+                    LocalFileCRUDUtils.deleteFile(deletePath);
+                }
+
+                SharedPreferenceUtil.set("lastOpenTime", System.currentTimeMillis());
+                SharedPreferenceUtil.set("version", screenSaverBean.getVsn());
+                SharedPreferenceUtil.set("switchFlag", screenSaverBean.getSwitchFlag());
+                CommonUtil.setWPTime(screenSaverBean.getWpTime());
+
+                if (mDreamFrameLayout != null) {
+                    mDreamFrameLayout.setNewData();
+                }
+            }
+
+        }
+
+        @Override
+        public void failed(SliderItem item) {
+            if (mFailedTimes.get(item.getImg_url()) != null) {
+                int times = (int) mFailedTimes.get(item.getImg_url());
+                LogUtil.w(TAG, "item.getImg_url() " + item.getImg_url() + " times " + times);
+
+                if (times > 0) {
+                    times--;
+                    mFailedTimes.put(item.getImg_url(), times);
+                    getImage(item);
+
+                } else {
+                    //重试3次还是不行
+                    try {
+                        //去掉队里中或者待运行状态的所有接口call
+                        mOkHttpClient.dispatcher().cancelAll();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    LocalFileCRUDUtils.deleteFile(mImageDownloadDir);
+                }
+
+            } else {
+                mFailedTimes.put(item.getImg_url(), 2);
+                getImage(item);
+            }
+
+        }
+    };
+
+    */
+    /** 获取屏保信息的回调 *//*
+    private Callback mInfoCallback = new Callback() {
+        @Override
+        public void onFailure(Call call, IOException e) {
+            LogUtil.e(TAG, "mInfoCallback e " + e);
+        }
+
+        @Override
+        public void onResponse(Call call, Response response) throws IOException {
+
+            //response.body().string().trim() 只能使用一次，使用多次会报异常
+            StringBuffer buffer = new StringBuffer();
+            buffer.append(response.body().string().trim());
+            LogUtil.i(TAG, "buffer " + buffer.toString());
+
+
+//            String string = GsonUtil.getJsonString(buffer.toString());
+//
+//            LogUtil.i(TAG, "string " + string);
+
+
+            try {
+                JSONObject jsonObject = new JSONObject(buffer.toString());
+
+//                LogUtil.i(TAG, "jsonObject" + jsonObject.toString());
+
+                if (!jsonObject.has("Z") || (int) jsonObject.get("Z") != 0) {
+
+                    LogUtil.w(TAG, "没有 z 字段 ？");
+                    return;
+                }
+
+                screenSaverBean = GsonUtil.fromJson(jsonObject.optString("screenSaver"),
+                        ScreenSaverBean.class);
+
+
+                LogUtil.i(TAG, "screenSaverBean:" + screenSaverBean);
+
+                String version = SharedPreferenceUtil.getString("version", "0");
+                if (screenSaverBean != null && screenSaverBean.getVsn() != null &&
+                        !version.equalsIgnoreCase(screenSaverBean.getVsn())) {
+                    mImageDownloadDir = IOHelper.getFilePath(getApplicationContext(), screenSaverBean.getVsn());
+
+                    mAllImages = screenSaverBean.getSlider().size();
+                    boolean isSaved = LocalFileCRUDUtils.
+                            saveInfoToLocal(buffer.toString(), mImageDownloadDir + "/data.json");
+
+                    LogUtil.i(TAG, "isSaved " + isSaved + " mImageDownloadDir " + mImageDownloadDir);
+
+                    for (SliderItem item : screenSaverBean.getSlider()) {
+                        getImage(item);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+    };
+
+
+    */
+    private BroadcastReceiver mBroadcastReceiver;
+
+//    @Override
+//    public void onCreate() {
+//        super.onCreate();
+//        onAttachedToWindow();
+//        onDreamingStarted();
+//    }
+
+    /** 获取图片的回调 *//*
+    private Callback mImageCallback = new Callback() {
+        @Override
+        public void onFailure(Call call, IOException e) {
+            LogUtil.e(TAG, "mImageCallback e " + e);
+        }
+
+        @Override
+        public void onResponse(Call call, Response response) {
+            LogUtil.i(TAG, "mImageCallback response " + response.body().toString());
+
+            FileOutputStream out = null;
+            try {
+                SliderItem sliderItem = (SliderItem) mURL.get(call.request().url().toString());
+
+                LogUtil.i(TAG, "sliderItem " + sliderItem.toString());
+
+                CRC32 crc32 = new CRC32();
+                byte[] bytes = response.body().bytes();
+                crc32.update(bytes);
+                LogUtil.i(TAG, "crc32.getValue() " + crc32.getValue() + "  Img_code " + sliderItem.getImg_code());
+
+                if (crc32.getValue() == sliderItem.getImg_code()) {
+
+                    File file = new File(mImageDownloadDir, sliderItem.getImg_url().hashCode() + "." + 0);
+                    LogUtil.i(TAG, "file.getAbsolutePath() " + file.getAbsolutePath() + " file.exists() " + file.exists());
+
+                    if (!file.exists()) {
+                        file.createNewFile();
+                    } else {
+                        file.delete();
+                    }
+
+                    out = new FileOutputStream(file);
+                    out.write(bytes);
+                    out.flush();
+
+                    mDownLoadInterface.succesed(sliderItem);
+
+                } else {
+                    LogUtil.e(TAG, "检验出错，重新尝试  ");
+                    mDownLoadInterface.failed(sliderItem);
+                }
+            } catch (IOException e) {
+
+                e.printStackTrace();
+            } finally {
+
+                IOHelper.close(out);
+            }
+
+        }
+    };*/
+    @Override
+    public void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        setContentView(R.layout.layout_lz_dream);
+        setFullscreen(true);//是否全屏，隐藏状态栏
+
+    }
+
+    @Override
+    public void onDreamingStarted() {
+        setInteractive(true);//是否可以互动，默认false
+        super.onDreamingStarted();
+        mDreamFrameLayout = (DreamFrameLayout) findViewById(R.id.dream_frame);
+        if (mDreamFrameLayout != null) {
+            mDreamFrameLayout.setDream(this);
+        }
+//        mNetRunnable = new NetRunnable();
+//        mNetRunnable.run();
+        long lastOpenTime = SharedPreferenceUtil.getLong("lastOpenTime", 0);
+        long temp = System.currentTimeMillis() - lastOpenTime;
+        LogUtil.i(TAG, " System.currentTimeMillis()- lastOpenTime " + temp);
+
+        if (System.currentTimeMillis() - lastOpenTime > ONEDAYTIME) {
+
+            LogUtil.i(TAG, " > one day ");
+            mBroadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    LogUtil.i(TAG, "action: " + intent.getAction());
+
+                    if (intent.getAction().equalsIgnoreCase(DownloadService.ONE_DAY_HAS_NEW_DATA)) {
+
+                        if (mDreamFrameLayout != null) {
+                            mDreamFrameLayout.setNewData();
+                        }
+                    }
+                }
+            };
+
+            IntentFilter intentFilter = new IntentFilter();
+            intentFilter.addAction(DownloadService.ONE_DAY_HAS_NEW_DATA);
+            registerReceiver(mBroadcastReceiver, intentFilter);
+
+
+            LogUtil.i(TAG, "============begin get data =========");
+            Intent mIntent = new Intent(getApplicationContext(), DownloadService.class);
+            startService(mIntent);
+        }
+    }
+
+    @Override
+    public void onDreamingStopped() {
+        super.onDreamingStopped();
+        if (mBroadcastReceiver != null) {
+            unregisterReceiver(mBroadcastReceiver);
+        }
+    }
+
+    //    /**
+//     * 网络线程，主要的工作线程
+//     */
+//    class NetRunnable implements Runnable {
+//
+//        @Override
+//        public void run() {
+//
+//            long lastOpenTime = SharedPreferenceUtil.getLong("lastOpenTime", 0);
+//            long temp = System.currentTimeMillis() - lastOpenTime;
+//            LogUtil.i(TAG, " System.currentTimeMillis()- lastOpenTime " + temp);
+//
+//            if (System.currentTimeMillis() - lastOpenTime > ONEDAYTIME) {
+//                LogUtil.i(TAG, "============begin get data =========");
+//                Intent mIntent = new Intent(getApplicationContext(), DownloadService.class);
+//                startService(mIntent);
+//
+//
+//                DeviceInfoMgr.getInstance().connect(getApplicationContext(), new DeviceInfoMgr.OnDeviceInfoListener() {
+//                    @Override
+//                    public void onResult(DeviceInfoMgr.DeviceInfo device) {
+//                        LogUtil.e(TAG, "device : " + device);
+//
+//                        if (device != null) {
+//                            mDeviceInfo = device;
+//                            getInfoFromNet(URL_INFO, mInfoCallback);
+//                        }
+//                    }
+//                });
+//
+//
+//            }
+//
+//        }
+//    }
+
+
+//    /**
+//     * 网络连接屏保服务器
+//     *
+//     * @param url
+//     * @param callback
+//     */
+//    private void getInfoFromNet(String url, Callback callback) {
+//        if (mOkHttpClient == null) {
+//            HttpLoggingInterceptor logInterceptor = new HttpLoggingInterceptor(new HttpLogger());
+//            logInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+//            mOkHttpClient = new OkHttpClient.Builder().connectTimeout(5, TimeUnit.SECONDS)
+//                    .writeTimeout(10, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS)
+//                    .addNetworkInterceptor(logInterceptor).build();
+//        }
+//        LogUtil.i(TAG, "getSoftwareVersion " + mDeviceInfo.getSoftwareVersion() + " sn "
+//                + mDeviceInfo.getSn() + " mac " + mDeviceInfo.getMac());
+//
+//        int vsn = Integer.valueOf(SharedPreferenceUtil.getString("version", "0"));
+//        JSONObject jsonObject = new JSONObject();
+//        try {
+//            jsonObject.put("vsn", vsn);
+//            LogUtil.d("jsonObject.toString() " + jsonObject.toString());
+//
+//            RequestBody requestBody = new FormBody.Builder()
+//                    .add("sdkvsn", "1.0.2")
+//                    .add("rom_sign", mDeviceInfo.getSoftwareVersion())
+//                    .add("launcher_sign", DreamApplication.getChannel())
+//                    .add("launcher_vsn", "")
+//                    .add("sn", mDeviceInfo.getSn())
+//                    .add("mac", mDeviceInfo.getMac())
+//                    .add("gdid", "")
+//                    .add("D", jsonObject.toString()).build();
+//
+//            LogUtil.d("jsonObject.toString() " + requestBody.toString());
+//
+//            Request request = new Request.Builder().url(url).post(requestBody).build();
+//            Call call = mOkHttpClient.newCall(request);
+//            call.enqueue(callback);
+//        } catch (JSONException e) {
+//            e.printStackTrace();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//
+//    }
+//
+//    /**
+//     * 根据图片信息，通过网络连接图片地址
+//     */
+//    public void getImage(SliderItem item) {
+//        Request request = new Request.Builder().get().url(item.getImg_url()).build();
+//        final Call call = mOkHttpClient.newCall(request);
+//        LogUtil.i(TAG, "call.request().url().toString() " + call.request().url().toString());
+//        if (mURL.get(call.request().url().toString()) == null) {
+//
+//            mURL.put(call.request().url().toString(), item);
+//        }
+//        call.enqueue(mImageCallback);
+//    }
+//
+
+}

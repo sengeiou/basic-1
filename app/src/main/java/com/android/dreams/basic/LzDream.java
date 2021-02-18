@@ -1,0 +1,91 @@
+package com.android.dreams.basic;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.service.dreams.DreamService;
+
+import com.android.dreams.basic.util.SharedPreferenceUtil;
+import com.lunzn.tool.log.LogUtil;
+
+/**
+ * Desc: 屏保服务
+ * <p>
+ * Author: xiezhitao
+ * PackageName: com.lzui.screensaver
+ * ProjectName: ScreenSave
+ * Date: 2019/3/1 9:41
+ */
+public class LzDream extends DreamService {
+    public static final String TAG = "LzDream";
+
+    private static final long ONEDAYTIME = 24 * 60 * 60 * 1000;// 86400000
+
+    private DreamFrameLayout mDreamFrameLayout;
+
+    private BroadcastReceiver mBroadcastReceiver;
+
+    @Override
+    public void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        setContentView(R.layout.layout_lz_dream);
+        setFullscreen(true);//是否全屏，隐藏状态栏
+
+    }
+
+    @Override
+    public void onDreamingStarted() {
+        setInteractive(true);//是否可以互动，默认false
+        super.onDreamingStarted();
+        mDreamFrameLayout = (DreamFrameLayout) findViewById(R.id.dream_frame);
+        if (mDreamFrameLayout != null) {
+            mDreamFrameLayout.setDream(this);
+        }
+        long lastOpenTime = SharedPreferenceUtil.getLong("lastOpenTime", 0);
+        long temp = System.currentTimeMillis() - lastOpenTime;
+        LogUtil.i(TAG, " System.currentTimeMillis()- lastOpenTime " + temp);
+
+        if (System.currentTimeMillis() - lastOpenTime > ONEDAYTIME) {
+
+            LogUtil.i(TAG, " > one day ");
+            mBroadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    LogUtil.i(TAG, "action: " + intent.getAction());
+
+                    if (intent.getAction().equalsIgnoreCase(DownloadService.ONE_DAY_HAS_NEW_DATA)) {
+
+                        if (mDreamFrameLayout != null) {
+                            mDreamFrameLayout.setNewData();
+                        }
+                    } else if((DownloadService.TV_YUYIN_WAKEUP).equalsIgnoreCase(intent.getAction()) ){
+                        if (mDreamFrameLayout != null) {
+                            mDreamFrameLayout.exitDream();
+                        }
+                    }
+                }
+            };
+
+            IntentFilter intentFilter = new IntentFilter();
+            intentFilter.addAction(DownloadService.ONE_DAY_HAS_NEW_DATA);
+            intentFilter.addAction(DownloadService.TV_YUYIN_WAKEUP);
+            registerReceiver(mBroadcastReceiver, intentFilter);
+
+
+            LogUtil.i(TAG, "============begin get data =========");
+            Intent mIntent = new Intent(getApplicationContext(), DownloadService.class);
+            startService(mIntent);
+        }
+    }
+
+    @Override
+    public void onDreamingStopped() {
+        super.onDreamingStopped();
+        if (mBroadcastReceiver != null) {
+            unregisterReceiver(mBroadcastReceiver);
+        }
+    }
+
+
+}

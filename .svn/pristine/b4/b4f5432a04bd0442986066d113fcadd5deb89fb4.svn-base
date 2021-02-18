@@ -1,0 +1,43 @@
+package com.android.dreams.basic;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+
+import com.android.dreams.basic.util.CommonUtil;
+import com.android.dreams.basic.util.SharedPreferenceUtil;
+import com.lunzn.tool.log.LogUtil;
+
+public class BootReceiver extends BroadcastReceiver {
+
+    private Intent mIntent;
+
+    private boolean hasSetted;
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        String action = intent.getAction();
+        LogUtil.d("=receive bd: " + action + " hasSetted " + hasSetted);
+        if (action.equals("com.lzui.launcher.adv.completed") && !hasSetted) {//launcher 开机广播
+            hasSetted = true;
+            setConfig();
+            if (mIntent == null) {
+                mIntent = new Intent(context, DownloadService.class);
+            }
+            context.startService(mIntent);
+
+        }
+    }
+
+    private void setConfig() {
+        int switchFlag = SharedPreferenceUtil.getInt("switchFlag", 1);
+        LogUtil.d("==================setConfig===============switchFlag: " + switchFlag);
+        if (switchFlag == 1) {
+
+            CommonUtil.setEnabled(true);
+            CommonUtil.setWPTime(CommonUtil.DEFAULT_TIME);
+
+        }
+
+    }
+}

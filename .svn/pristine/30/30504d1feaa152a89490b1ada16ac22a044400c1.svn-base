@@ -1,0 +1,53 @@
+package com.android.dreams.basic.activity;
+
+import android.content.ComponentName;
+import android.os.Bundle;
+import android.os.RemoteException;
+import android.os.ServiceManager;
+import android.service.dreams.IDreamManager;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+
+import com.android.dreams.basic.R;
+
+
+public class MainActivity extends AppCompatActivity {
+    private static final String TAG = MainActivity.class.getSimpleName();
+    private IDreamManager mDreamManager;
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        startDreaming();
+        finish();
+    }
+
+    public void startDreaming() {
+        mDreamManager = IDreamManager.Stub.asInterface(
+                ServiceManager.getService("dreams"));
+        if (mDreamManager == null) {
+
+            Log.e(TAG, "mDreamManager == null");
+            return;
+        }
+        try {
+            Log.w(TAG, "getDefaultDream()：" + getDefaultDream());
+            mDreamManager.dream();
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed to dream", e);
+        }
+    }
+
+    public ComponentName getDefaultDream() {
+        try {
+            return mDreamManager.getDefaultDreamComponent();
+        } catch (RemoteException e) {
+            Log.w(TAG, "Failed to get default dream", e);
+            return null;
+        }
+    }
+
+
+}

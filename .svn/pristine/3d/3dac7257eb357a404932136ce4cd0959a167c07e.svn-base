@@ -1,0 +1,216 @@
+package com.android.dreams.basic.util;
+
+import android.content.Context;
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.BitmapFactory.Options;
+import android.graphics.Matrix;
+import android.os.Environment;
+
+import com.lunzn.tool.autofit.GetScreenSize;
+import com.lunzn.tool.log.LogUtil;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+
+import static android.os.Environment.MEDIA_MOUNTED;
+
+public class IOHelper {
+
+    /** 从给定路径加载图片 */
+    public static Bitmap loadBitmap(String imgpath, Options options) {
+//        Options options = new Options();
+//        options.inJustDecodeBounds = true;
+//        BitmapFactory.decodeFile(imgpath, options);
+
+        options.inSampleSize = calculateInSampleSize(options, GetScreenSize.widthPixels, GetScreenSize.heightPixels);
+        LogUtil.i(" 宽" + options.outWidth + "/高" + options.outHeight + "  /options.inSampleSize: " + options.inSampleSize);
+        options.inJustDecodeBounds = false;
+        //Config参数，解析器或根据当前的参数配置进行对应的解析，这也可以有效减少加载的内存
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        //由此产生的位图将分配它的像素,这样他们可以被净化系统需要回收的内存。
+        options.inPurgeable = true;
+        //inInputShareable属性和inPurgeable 有关，当inPurgeable 属性设置为false的时候，inInputShareable属性就可以忽略。
+        //但是如果这两个属性都设置为true的时候，源码的注释这样说：确定位图可以共享一个参考输入数据如果它必须深拷贝的话。
+        options.inInputShareable = true;
+        return BitmapFactory.decodeFile(imgpath, options);
+    }
+    /** 从给定路径加载并且放大图片 */
+    public static Bitmap big(String imgpath) {
+        Options options = new Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(imgpath, options);
+
+        Bitmap resizeBmp = null;
+        if (isBig(options, GetScreenSize.widthPixels, GetScreenSize.heightPixels)) {
+
+            Bitmap bitmap = BitmapFactory.decodeFile(imgpath);
+            float w = (float) GetScreenSize.widthPixels / (float) bitmap.getWidth();    //计算当前图片要全屏幕，宽度需要放大尺寸
+            float h = (float) GetScreenSize.heightPixels / (float) bitmap.getHeight();  //计算当前图片要全屏，高度需要放大尺寸
+            if (w >= h)//选取较小尺寸进行放大
+            { w = h; }
+            Matrix matrix = new Matrix();
+            matrix.postScale(w, w);//设置宽高放大比例（这里为等比例放大）
+            resizeBmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(),
+                    bitmap.getHeight(), matrix, true);//对现有bitmap进行放大
+//            if (bitmap != null) {
+//                bitmap.recycle();
+//            }
+        } else {
+            resizeBmp = loadBitmap(imgpath, options);
+        }
+
+
+        return resizeBmp;
+    }
+
+
+//    /**
+//     * 从给定的路径加载图片 并指定是否自动旋转方向
+//     *
+//     * @param imgpath
+//     * @param adjustOritation
+//     * @return
+//     */
+//    public static Bitmap loadBitmap(String imgpath, boolean adjustOritation, int digree) {
+//        LogUtil.i("文件方向11111，loadBitmap:" + imgpath);
+//        if (!adjustOritation) {
+//            return loadBitmap(imgpath);
+//        } else {
+//            Bitmap bm = loadBitmap(imgpath);
+//            LogUtil.i("文件方向22222，loadBitmap:" + imgpath);
+//            LogUtil.i("文件方向，path: rotateBitmap ");
+//            return rotateBitmap(bm, digree);
+//        }
+//    }
+
+    public static boolean isBig(Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+
+        LogUtil.i("屏幕宽高 " + reqWidth + "/" + reqHeight + "  图片宽高: " + width + " / " + height);
+
+        if (height >= reqHeight || width >= reqWidth) {
+            return false;
+        }
+        return true;
+    }
+
+    public static int calculateInSampleSize(Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        LogUtil.i("屏幕宽高 " + reqWidth + "/" + reqHeight + "  图片宽高: " + width + " / " + height);
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int heightRatio = (int) Math.floor((float) height / (float) reqHeight);
+            final int widthRatio = (int) Math.floor((float) width / (float) reqWidth);
+
+            LogUtil.i("  widthRatio" + widthRatio + "   heightRatio" + heightRatio);
+
+            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
+
+        } else if (reqHeight > height || reqWidth > width) {
+
+            final int heightRatio = (int) Math.ceil((float) reqHeight / (float) height);
+            final int widthRatio = (int) Math.ceil((float) reqWidth / (float) width);
+
+            LogUtil.i(" widthRatio " + widthRatio + "   heightRatio " + heightRatio);
+
+            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
+        }
+        return inSampleSize;
+    }
+
+    /**
+     * 旋转图片，使图片保持正确的方向。
+     *
+     * @param bitmap  原始图片
+     * @param degrees 原始图片的角度
+     * @return Bitmap 旋转后的图片
+     */
+    public static Bitmap rotateBitmap(Bitmap bitmap, int degrees) {
+        Bitmap bmp = null;
+        LogUtil.i("文件方向，path: rotateBitmap  11111111111111");
+        try {
+            if (degrees == 0 || null == bitmap) {
+                return bitmap;
+            }
+            Matrix matrix = new Matrix();
+            matrix.setRotate(degrees, bitmap.getWidth() / 2, bitmap.getHeight() / 2);
+            bmp = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            if (null != bitmap) {
+                bitmap.recycle();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        LogUtil.i("文件方向，path: rotateBitmap  222222222");
+        return bmp;
+    }
+
+    /**
+     *  
+     *
+     * @param context 上下文对象
+     * @param dir      存储目录
+     * @return
+     */
+    public static String getFilePath(Context context, String dir) {
+        String directoryPath = "";
+        //判断SD卡是否可用 
+        if (MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
+            directoryPath = context.getExternalFilesDir(dir).getAbsolutePath();
+        } else {
+            directoryPath = context.getFilesDir() + File.separator + dir;
+        }
+        File file = new File(directoryPath);
+        if (!file.exists()) {//判断文件目录是否存在  
+            file.mkdirs();
+        }
+        LogUtil.i("filePath====>" + directoryPath);
+        return directoryPath;
+    }
+
+    /**
+     * 关闭流
+     *
+     * @param closeable
+     */
+    public static void close(Closeable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * 加载图片
+     *  
+     *
+     * @param resources
+     * @param id
+     * @return Bitmap
+     */
+    public static Bitmap decodeBitmapResource(Resources resources, int id) {
+
+
+        Bitmap bitmap;
+        InputStream is = resources.openRawResource(id);
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inPurgeable = true;
+        opts.inInputShareable = true;
+        opts.inPreferredConfig = Bitmap.Config.RGB_565;
+        bitmap = BitmapFactory.decodeStream(is, null, opts);
+        return bitmap;
+    }
+
+}

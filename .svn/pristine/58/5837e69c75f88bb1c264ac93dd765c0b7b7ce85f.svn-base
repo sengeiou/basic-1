@@ -1,0 +1,339 @@
+package com.android.dreams.basic;
+
+import android.app.IntentService;
+import android.content.Intent;
+
+import com.android.dreams.basic.bean.ScreenSaverBean;
+import com.android.dreams.basic.bean.SliderItem;
+import com.android.dreams.basic.util.CommonUtil;
+import com.android.dreams.basic.util.GsonUtil;
+import com.android.dreams.basic.util.IOHelper;
+import com.android.dreams.basic.util.SharedPreferenceUtil;
+import com.lunzn.tool.log.LogUtil;
+import com.lunzn.tool.util.DeviceInfoMgr;
+import com.smart.localfile.LocalFileCRUDUtils;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.CRC32;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.FormBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
+/**
+ * Desc: 下载服务类
+ * <p>
+ * Author: xiezhitao
+ * PackageName: com.android.dreams.basic
+ * ProjectName: basic
+ * Date: 2019/6/17 15:47
+ */
+public class DownloadService extends IntentService {
+
+    public static final String TAG = "DownloadService";
+
+    /** 获取屏保信息地址 */
+    private static final String URL_INFO = "http://lunzn.aisee.tv/m2/rom/screenSaver";
+
+    /** 文件下载地址 */
+    private String mImageDownloadDir = "";
+
+    /** 下载类 */
+    private OkHttpClient mOkHttpClient;
+
+    /** 是否正在下载 */
+    private boolean isDownLoading;
+
+    /** 每个图片对应的下载次数集合 */
+    private HashMap<String, Integer> mFailedTimes = new HashMap();
+
+    /** 准备下载 SliderItem 集合 */
+    private HashMap<String, SliderItem> mURL = new HashMap();
+
+    /** 已下载的 SliderItem 集合 */
+    private HashSet<SliderItem> mAllDownSliderItem = new HashSet();
+
+    /** 图片总数 */
+    private int mAllImages;
+
+    /** 设备信息 */
+    private DeviceInfoMgr.DeviceInfo mDeviceInfo;
+
+    /** 实体类对象 */
+    private ScreenSaverBean screenSaverBean = null;
+
+    /** 下载图片成功和失败的回调 */
+    private DownLoadInterface mDownLoadInterface = new DownLoadInterface() {
+        @Override
+        public void succesed(SliderItem item) {
+            if (!mAllDownSliderItem.contains(item)) {
+                mAllDownSliderItem.add(item);
+            }
+            if (mAllDownSliderItem.size() == mAllImages) {
+
+                LogUtil.w(TAG, "全部图片下载成功 ");
+                String version = SharedPreferenceUtil.getString("version", "0");
+                if (!version.equalsIgnoreCase("0") && !version.equalsIgnoreCase(screenSaverBean.getVsn())) {
+
+                    String deletePath = IOHelper.getFilePath(getApplicationContext(), version);
+                    LocalFileCRUDUtils.deleteFile(deletePath);
+                }
+
+                SharedPreferenceUtil.set("lastOpenTime", System.currentTimeMillis());
+                SharedPreferenceUtil.set("version", screenSaverBean.getVsn());
+                SharedPreferenceUtil.set("switchFlag", screenSaverBean.getSwitchFlag());
+
+                CommonUtil.setEnabled(screenSaverBean.getSwitchFlag() == 1);
+                CommonUtil.setWPTime(screenSaverBean.getWpTime());
+                isDownLoading = false;
+            }
+
+        }
+
+        @Override
+        public void failed(SliderItem item) {
+            if (mFailedTimes.get(item.getImg_url()) != null) {
+                int times = (int) mFailedTimes.get(item.getImg_url());
+                LogUtil.w(TAG, "item.getImg_url() " + item.getImg_url() + " times " + times);
+
+                if (times > 0) {
+                    times--;
+                    mFailedTimes.put(item.getImg_url(), times);
+                    getImage(item);
+
+                } else {
+                    //重试3次还是不行
+                    try {
+                        //去掉队里中或者待运行状态的所有接口call
+                        mOkHttpClient.dispatcher().cancelAll();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    LocalFileCRUDUtils.deleteFile(mImageDownloadDir);
+                    isDownLoading = false;
+                }
+
+            } else {
+                mFailedTimes.put(item.getImg_url(), 2);
+                getImage(item);
+            }
+
+        }
+    };
+
+    /** 获取屏保信息的回调 */
+    private Callback mInfoCallback = new Callback() {
+        @Override
+        public void onFailure(Call call, IOException e) {
+            LogUtil.e(TAG, "mInfoCallback e " + e);
+        }
+
+        @Override
+        public void onResponse(Call call, Response response) throws IOException {
+
+            //response.body().string().trim() 只能使用一次，使用多次会报异常
+            StringBuffer buffer = new StringBuffer();
+            buffer.append(response.body().string().trim());
+            LogUtil.i(TAG, "buffer " + buffer.toString());
+
+
+//            String string = GsonUtil.getJsonString(buffer.toString());
+//
+//            LogUtil.i(TAG, "string " + string);
+
+
+            try {
+                JSONObject jsonObject = new JSONObject(buffer.toString());
+
+//                LogUtil.i(TAG, "jsonObject" + jsonObject.toString());
+
+                if (!jsonObject.has("Z") || (int) jsonObject.get("Z") != 0) {
+
+                    LogUtil.w(TAG, "没有 z 字段 ？");
+                    return;
+                }
+
+                screenSaverBean = GsonUtil.fromJson(jsonObject.optString("screenSaver"),
+                        ScreenSaverBean.class);
+
+
+                LogUtil.i(TAG, "screenSaverBean:" + screenSaverBean);
+
+                String version = SharedPreferenceUtil.getString("version", "0");
+                if (screenSaverBean != null && screenSaverBean.getVsn() != null &&
+                        !version.equalsIgnoreCase(screenSaverBean.getVsn())) {
+                    mImageDownloadDir = IOHelper.getFilePath(getApplicationContext(), screenSaverBean.getVsn());
+
+                    mAllImages = screenSaverBean.getSlider().size();
+                    boolean isSaved = LocalFileCRUDUtils.
+                            saveInfoToLocal(buffer.toString(), mImageDownloadDir + "/data.json");
+
+                    LogUtil.i(TAG, "isSaved " + isSaved + " mImageDownloadDir " + mImageDownloadDir);
+
+                    for (SliderItem item : screenSaverBean.getSlider()) {
+                        getImage(item);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+    };
+
+
+    /** 获取图片的回调 */
+    private Callback mImageCallback = new Callback() {
+        @Override
+        public void onFailure(Call call, IOException e) {
+            LogUtil.e(TAG, "mImageCallback e " + e);
+        }
+
+        @Override
+        public void onResponse(Call call, Response response) {
+            LogUtil.i(TAG, "mImageCallback response " + response.body().toString());
+
+            FileOutputStream out = null;
+            try {
+                SliderItem sliderItem = (SliderItem) mURL.get(call.request().url().toString());
+
+                LogUtil.i(TAG, "sliderItem " + sliderItem.toString());
+
+                CRC32 crc32 = new CRC32();
+                byte[] bytes = response.body().bytes();
+                crc32.update(bytes);
+                LogUtil.i(TAG, "crc32.getValue() " + crc32.getValue() + "  Img_code " + sliderItem.getImg_code());
+
+                if (crc32.getValue() == sliderItem.getImg_code()) {
+
+                    File file = new File(mImageDownloadDir, sliderItem.getImg_url().hashCode() + "." + 0);
+                    LogUtil.i(TAG, "file.getAbsolutePath() " + file.getAbsolutePath() + " file.exists() " + file.exists());
+
+                    if (!file.exists()) {
+                        file.createNewFile();
+                    } else {
+                        file.delete();
+                    }
+
+                    out = new FileOutputStream(file);
+                    out.write(bytes);
+                    out.flush();
+
+                    mDownLoadInterface.succesed(sliderItem);
+
+                } else {
+                    LogUtil.e(TAG, "检验出错，重新尝试  ");
+                    mDownLoadInterface.failed(sliderItem);
+                }
+            } catch (IOException e) {
+
+                e.printStackTrace();
+            } finally {
+
+                IOHelper.close(out);
+            }
+
+        }
+    };
+
+
+    /**
+     * 网络连接屏保服务器
+     *
+     * @param url
+     * @param callback
+     */
+    private void getInfoFromNet(String url, Callback callback) {
+        if (mOkHttpClient == null) {
+            mOkHttpClient = new OkHttpClient.Builder().connectTimeout(5, TimeUnit.SECONDS)
+                    .writeTimeout(10, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build();
+        }
+        LogUtil.i(TAG, "getSoftwareVersion " + mDeviceInfo.getSoftwareVersion() + " sn "
+                + mDeviceInfo.getSn() + " mac " + mDeviceInfo.getMac());
+
+        int vsn = Integer.valueOf(SharedPreferenceUtil.getString("version", "0"));
+        JSONObject jsonObject = new JSONObject();
+        try {
+            jsonObject.put("vsn", vsn);
+            LogUtil.d("jsonObject.toString() " + jsonObject.toString());
+
+            RequestBody requestBody = new FormBody.Builder()
+                    .add("sdkvsn", "1.0.2")
+                    .add("rom_sign", mDeviceInfo.getSoftwareVersion())
+                    .add("launcher_sign", DreamApplication.getChannel())
+                    .add("launcher_vsn", "")
+                    .add("sn", mDeviceInfo.getSn())
+                    .add("mac", mDeviceInfo.getMac())
+                    .add("gdid", "")
+                    .add("D", jsonObject.toString()).build();
+
+            LogUtil.d("jsonObject.toString() " + requestBody.toString());
+
+            Request request = new Request.Builder().url(url).post(requestBody).build();
+            Call call = mOkHttpClient.newCall(request);
+            call.enqueue(callback);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    /**
+     * 根据图片信息，通过网络连接图片地址
+     */
+    public void getImage(SliderItem item) {
+        Request request = new Request.Builder().get().url(item.getImg_url()).build();
+        final Call call = mOkHttpClient.newCall(request);
+        LogUtil.i(TAG, "call.request().url().toString() " + call.request().url().toString());
+        if (mURL.get(call.request().url().toString()) == null) {
+
+            mURL.put(call.request().url().toString(), item);
+        }
+        call.enqueue(mImageCallback);
+    }
+
+
+    public DownloadService() {
+        super("screensave");
+    }
+
+    public DownloadService(String name) {
+        super(name);
+    }
+
+    @Override
+    protected void onHandleIntent(Intent intent) {
+
+        LogUtil.e(TAG, "isDownLoading : " + isDownLoading + " screenSaverBean: " + screenSaverBean);
+        if (isDownLoading || screenSaverBean != null) {return;}
+
+        DeviceInfoMgr.getInstance().connect(getApplicationContext(), new DeviceInfoMgr.OnDeviceInfoListener() {
+            @Override
+            public void onResult(DeviceInfoMgr.DeviceInfo device) {
+                LogUtil.e(TAG, "device : " + device);
+
+                if (device != null) {
+                    isDownLoading = true;
+                    mDeviceInfo = device;
+                    getInfoFromNet(URL_INFO, mInfoCallback);
+                }
+            }
+        });
+    }
+
+
+}

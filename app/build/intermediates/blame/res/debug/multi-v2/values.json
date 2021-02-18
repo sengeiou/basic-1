@@ -1,0 +1,64 @@
+{
+    "logs": [
+        {
+            "outputFile": "F:\\asspace\\basic\\app\\build\\intermediates\\incremental\\mergeDebugResources\\merged.dir\\values\\values.xml",
+            "map": [
+                {
+                    "source": "F:\\asspace\\basic\\app\\src\\main\\res\\values\\strings.xml",
+                    "from": {
+                        "startLines": "37,9,20,1,4,5,2",
+                        "startColumns": "4,4,4,4,4,4,4",
+                        "startOffsets": "1280,228,734,17,124,173,60",
+                        "endLines": "45,17,35,1,4,5,2",
+                        "endColumns": "20,19,19,41,47,47,60",
+                        "endOffsets": "1609,694,1272,54,167,216,116"
+                    },
+                    "to": {
+                        "startLines": "2,11,20,39,40,41,42",
+                        "startColumns": "4,4,4,4,4,4,4",
+                        "startOffsets": "55,381,844,1516,1558,1606,1654",
+                        "endLines": "10,19,35,39,40,41,42",
+                        "endColumns": "20,19,19,41,47,47,60",
+                        "endOffsets": "376,839,1367,1553,1601,1649,1710"
+                    }
+                },
+                {
+                    "source": "F:\\asspace\\basic\\app\\src\\main\\res\\values\\colors.xml",
+                    "from": {
+                        "startLines": "4,2,3",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "157,57,105",
+                        "endColumns": "45,46,50",
+                        "endOffsets": "198,99,151"
+                    },
+                    "to": {
+                        "startLines": "36,37,38",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "1372,1418,1465",
+                        "endColumns": "45,46,50",
+                        "endOffsets": "1413,1460,1511"
+                    }
+                },
+                {
+                    "source": "F:\\asspace\\basic\\app\\src\\main\\res\\values\\styles.xml",
+                    "from": {
+                        "startLines": "21,2,6",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "1068,19,203",
+                        "endLines": "25,4,19",
+                        "endColumns": "12,12,12",
+                        "endOffsets": "1405,195,1060"
+                    },
+                    "to": {
+                        "startLines": "43,48,51",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "1715,2053,2232",
+                        "endLines": "47,50,64",
+                        "endColumns": "12,12,12",
+                        "endOffsets": "2048,2227,3076"
+                    }
+                }
+            ]
+        }
+    ]
+}

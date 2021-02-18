@@ -1,0 +1,84 @@
+package com.android.dreams.basic.activity;
+
+import android.app.Activity;
+import android.content.Context;
+import android.os.Bundle;
+import android.os.PowerManager;
+import android.os.SystemClock;
+import android.view.Window;
+import android.view.WindowManager;
+
+import com.android.dreams.basic.util.CommonUtil;
+
+import java.lang.reflect.InvocationTargetException;
+
+
+public class MainActivity extends Activity {
+    private static final String TAG = MainActivity.class.getSimpleName();
+
+
+    public static void goToSleep(Context context) {
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        try {
+            powerManager.getClass().getMethod("nap", new Class[]{long.class}).invoke(powerManager, SystemClock.uptimeMillis());
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+//        CommonUtil.setWPTime(30000);
+
+        CommonUtil.setEnabled(true);
+        CommonUtil.setDream();
+//        CommonUtil.startDreaming();
+//
+        setvalue();
+        goToSleep(this);
+
+        finish();
+    }
+
+//    public void goToSleep(Context context) {
+//        try {
+//            PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+//            Method m = powerManager.getClass().getDeclaredMethod("goToSleep", long.class, int.class, int.class);
+//            m.setAccessible(true);
+//            m.invoke(this, SystemClock.uptimeMillis(), 2, 0);
+//        } catch (NoSuchMethodException e) {
+//            e.printStackTrace();
+//        } catch (IllegalAccessException e) {
+//            e.printStackTrace();
+//        } catch (IllegalArgumentException e) {
+//            e.printStackTrace();
+//        } catch (InvocationTargetException e) {
+//            e.printStackTrace();
+//        }
+//
+//    }
+
+    private void setvalue() {
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+
+//        /*
+//         * 将对话框的大小按屏幕大小的百分比设置
+//         */
+//        Window window = this.getWindow();
+//        WindowManager m = window.getWindowManager();
+//        Display d = m.getDefaultDisplay(); // 获取屏幕宽、高用
+//        WindowManager.LayoutParams p = window.getAttributes(); // 获取对话框当前的参数值
+//        p.height = 0; // 高度设置为0
+//        p.width = 0;//宽0
+//        p.gravity = Gravity.CENTER;
+//        window.setAttributes(p);
+    }
+}

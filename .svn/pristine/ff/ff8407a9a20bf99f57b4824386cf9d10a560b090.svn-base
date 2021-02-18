@@ -1,0 +1,46 @@
+package com.lzui.screensaver;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Environment;
+
+import com.lunzn.tool.log.LogUtil;
+import com.smart.data.DataFormat;
+
+public class UDiskReceiver extends BroadcastReceiver {
+
+    private static final String TAG = UDiskReceiver.class.getSimpleName();
+    public static String USBPATH = "";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        String action = intent.getAction();
+        LogUtil.i(TAG, "UDiskReceiver  receive bd:       " + action);
+        if (action.equals("android.intent.action.MEDIA_MOUNTED")) {
+
+            checkUsbUpdate(intent.getData().getPath());
+
+        } else if (action.equals("android.intent.action.MEDIA_UNMOUNTED")) {
+
+        }
+    }
+
+
+    /**
+     * 检测u盘是否存在
+     *
+     * @param usbPath
+     */
+    private void checkUsbUpdate(String usbPath) {
+        String localpath = Environment.getExternalStorageDirectory().getAbsolutePath();
+
+        if (!DataFormat.isEmpty(usbPath) && !usbPath.contains(localpath)) {
+            USBPATH = usbPath+"/";
+            LogUtil.i(TAG, "USBPATH " + USBPATH);
+
+        }
+    }
+
+
+}

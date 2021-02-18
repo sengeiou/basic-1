@@ -1,0 +1,4 @@
+#Wed Nov 11 09:54:59 CST 2020
+base.0=F\:\\asspace\\basic\\app\\build\\intermediates\\transforms\\dexMerger\\debug\\0
+path.0=classes.dex
+renamed.0=classes.dex

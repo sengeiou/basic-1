@@ -1,0 +1,39 @@
+package com.android.dreams.basic;
+
+import android.app.Application;
+import android.content.Context;
+
+import com.android.dreams.basic.util.SharedPreferenceUtil;
+import com.lunzn.tool.autofit.GetScreenSize;
+import com.lunzn.tool.crash.CrashHandler;
+import com.lunzn.tool.log.LogUtil;
+
+/**
+ * Desc: 初始化界面工具类
+ * <p>
+ * Author: xiezhitao
+ * PackageName: com.lz.screensaver
+ * ProjectName: screensaver
+ * Date: 2018/12/14 10:21
+ */
+public class DreamApplication extends Application {
+    private static final String TAG = DreamApplication.class.getSimpleName();
+    private static Context sContext;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        LogUtil.init(true);
+        LogUtil.i(TAG, "onCreate application");
+        LogUtil.setSaveLogPath(this, "screensave.log", true);
+        SharedPreferenceUtil.init(this, "screensave");
+        GetScreenSize.initData(this);
+        CrashHandler.getInstance().init(this);
+        sContext = getApplicationContext();
+//        MultiDex.install(this) ;
+    }
+
+    public static Context getApplication() {
+        return sContext;
+    }
+}

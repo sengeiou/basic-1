@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+
+    <com.android.dreams.basic.DreamFrameLayout
+        android:id="@+id/dream_frame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:focusable="true">
+
+        <com.android.dreams.basic.ImageViewer
+            android:id="@+id/imageViewer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </com.android.dreams.basic.DreamFrameLayout>
+</FrameLayout>

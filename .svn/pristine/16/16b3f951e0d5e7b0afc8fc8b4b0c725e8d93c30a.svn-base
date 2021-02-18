@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">万花筒</string>
+    <string name="title_activity_settings">Settings</string>
+
+    <string name="pref_list_tile">休眠时长</string>
+    <string name="pref_switch_tile">开关</string>
+
+
+
+    <string-array name="screen_timeout_entries">
+        <item msgid="3342301044271143016">"15 秒"</item>
+        <item msgid="8881760709354815449">"30 秒"</item>
+        <item msgid="7589406073232279088">"1 分钟"</item>
+        <item msgid="7001195990902244174">"2 分钟"</item>
+        <item msgid="7489864775127957179">"5 分钟"</item>
+        <item msgid="2314124409517439288">"10 分钟"</item>
+        <item msgid="6864027152847611413">"30 分钟"</item>
+    </string-array>
+
+    <!-- Do not translate. -->
+    <string-array name="screen_timeout_values" translatable="false">
+        <!-- Do not translate. -->
+        <item>15000</item>
+        <!-- Do not translate. -->
+        <item>30000</item>
+        <!-- Do not translate. -->
+        <item>60000</item>
+        <!-- Do not translate. -->
+        <item>120000</item>
+        <!-- Do not translate. -->
+        <item>300000</item>
+        <!-- Do not translate. -->
+        <item>600000</item>
+        <!-- Do not translate. -->
+        <item>1800000</item>
+    </string-array>
+
+</resources>

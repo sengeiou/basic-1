@@ -1,0 +1,59 @@
+package com.android.dreams.basic.activity;
+
+import android.app.Activity;
+import android.content.ComponentName;
+import android.os.Bundle;
+import android.os.RemoteException;
+import android.os.ServiceManager;
+import android.service.dreams.IDreamManager;
+
+import com.lunzn.tool.log.LogUtil;
+
+
+public class MainActivity extends Activity {
+    private static final String TAG = MainActivity.class.getSimpleName();
+    private IDreamManager mDreamManager;
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+//        setContentView(R.layout.activity_main);
+        startDreaming();
+        finish();
+    }
+
+    public void startDreaming() {
+        mDreamManager = IDreamManager.Stub.asInterface(
+                ServiceManager.getService("dreams"));
+        if (mDreamManager == null) {
+
+            LogUtil.e(TAG, "mDreamManager == null");
+            return;
+        }
+        try {
+            LogUtil.w(TAG, "getDefaultDream()：" + getDefaultDream());
+            mDreamManager.dream();
+//            mDreamManager.awaken();
+        } catch (RemoteException e) {
+            LogUtil.w(TAG, "Failed to dream" + e.getLocalizedMessage());
+        }
+    }
+
+    public ComponentName getDefaultDream() {
+
+        try {
+            ComponentName[] componentNames = mDreamManager.getDreamComponents();
+            for (ComponentName dreamComponent : componentNames) {
+                LogUtil.i(TAG, "dreamComponent:" + dreamComponent);
+            }
+            componentNames[0] = new ComponentName("com.android.dreams.basic", "com.android.dreams.basic.LzDream");
+            mDreamManager.setDreamComponents(componentNames);
+            return mDreamManager.getDefaultDreamComponent();
+        } catch (RemoteException e) {
+            LogUtil.w(TAG, "Failed to get default dream" + e.getLocalizedMessage());
+            return null;
+        }
+    }
+
+}
